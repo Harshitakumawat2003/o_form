@@ -1,0 +1,30 @@
+Sign Up --
+
+password 
+confirm password 
+name
+email
+country 
+state 
+city
+pincode
+address1
+address2
+mobile
+
+Login --
+
+mobile/email
+password
+
+AFTER login show a screen 
+
+Category --
+
+Image 
+banner 
+name
+description 
+
+Sub Categories --
+
