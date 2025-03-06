@@ -28,3 +28,367 @@ description
 
 Sub Categories --
 
+
+Backend 
+db.js 
+const mongoose = require("mongoose");
+require("dotenv").config();
+
+const connectDB = async () => {
+  try {
+    await mongoose.connect(process.env.MONGO_URI, {
+      useNewUrlParser: true,
+      useUnifiedTopology: true,
+    });
+    console.log("MongoDB Connected Successfully!");
+  } catch (error) {
+    console.error("MongoDB Connection Failed:", error.message);
+    process.exit(1);
+  }
+};
+
+module.exports = connectDB;
+User.js file 
+const mongoose = require("mongoose");
+const bcrypt = require("bcrypt");
+
+const userSchema = new mongoose.Schema({
+  name: { type: String, required: true },
+  email: { type: String, required: true, unique: true },
+  password: { type: String, required: true },
+  phone: { type: String, required: true },  // New field
+  address: { type: String, required: true }, // New field
+  createdAt: { type: Date, default: Date.now }
+});
+
+// Hash password before saving
+userSchema.pre("save", async function (next) {
+  if (!this.isModified("password")) return next();
+  const salt = await bcrypt.genSalt(10);
+  this.password = await bcrypt.hash(this.password, salt);
+  next();
+});
+
+const User = mongoose.model("User", userSchema);
+module.exports = User;
+authRoutes.js
+const express = require("express");
+const bcrypt = require("bcrypt");
+const User = require("../models/User");
+
+const router = express.Router();
+
+// User Registration (Signup)
+router.post("/signup", async (req, res) => {
+  try {
+    const { name, email, password, phone, address, newPassword } = req.body;
+
+    let user = await User.findOne({ email });
+
+    if (user) {
+      if (newPassword) {
+        const salt = await bcrypt.genSalt(10);
+        user.password = await bcrypt.hash(newPassword, salt);
+        await user.save();
+        return res.status(200).json({ message: "Password updated successfully!" });
+      }
+      return res.status(400).json({ message: "User already exists!" });
+    }
+
+    const newUser = new User({ name, email, password, phone, address });
+    await newUser.save();
+
+    res.status(201).json({ message: "User registered successfully!", user: newUser });
+  } catch (error) {
+    res.status(500).json({ error: "Server Error" });
+  }
+});
+
+// User Login (Signin)
+router.post("/signin", async (req, res) => {
+  try {
+    const { email, password } = req.body;
+    const user = await User.findOne({ email });
+
+    if (!user) {
+      return res.status(400).json({ message: "Invalid email or password!" });
+    }
+
+    const isMatch = await bcrypt.compare(password, user.password);
+    if (!isMatch) {
+      return res.status(400).json({ message: "Invalid email or password!" });
+    }
+
+    res.status(200).json({ message: "Login successful!", user });
+  } catch (error) {
+    res.status(500).json({ error: "Server Error" });
+  }
+});
+
+// Password Change
+router.post("/change-password", async (req, res) => {
+  try {
+    const { email, oldPassword, newPassword } = req.body;
+
+    const user = await User.findOne({ email });
+    if (!user) return res.status(400).json({ message: "User not found!" });
+
+    const isMatch = await bcrypt.compare(oldPassword, user.password);
+    if (!isMatch) return res.status(400).json({ message: "Incorrect old password!" });
+
+    const salt = await bcrypt.genSalt(10);
+    user.password = await bcrypt.hash(newPassword, salt);
+    await user.save();
+
+    res.status(200).json({ message: "Password changed successfully!" });
+  } catch (error) {
+    res.status(500).json({ error: "Server Error" });
+  }
+});
+
+module.exports = router;
+server.js
+const express = require("express");
+const mongoose = require("mongoose");
+const cors = require("cors");
+const authRoutes = require("./routes/authRoutes");
+require("dotenv").config();
+
+const app = express();
+
+// Middleware
+app.use(express.json());
+app.use(cors());
+
+// Routes
+app.use("/api/auth", authRoutes);
+
+// MongoDB Connection
+mongoose.connect(process.env.MONGO_URI, {
+  useNewUrlParser: true,
+  useUnifiedTopology: true,
+}).then(() => console.log("MongoDB Connected"))
+  .catch(err => console.log(err));
+
+const PORT = process.env.PORT || 5000;
+app.listen(PORT, () => console.log(Server running on port ${PORT}));
+
+Frontend
+App.js
+import React from "react";
+import { BrowserRouter as Router, Route, Routes, Navigate } from "react-router-dom";
+import Signin from "./Signin";
+import Signup from "./Signup";
+import ForgotPassword from "./ForgotPassword";
+
+function App() {
+  return (
+    <Router>
+      <Routes>
+        <Route path="/" element={<Navigate to="/signin" />} />
+        <Route path="/signin" element={<Signin />} />
+        <Route path="/signup" element={<Signup />} />
+        <Route path="/forgot-password" element={<ForgotPassword />} />
+      </Routes>
+    </Router>
+  );
+}
+
+export default App;
+
+Signin.js
+
+import React, { useState } from "react";
+import { Link, useNavigate } from "react-router-dom";
+import "./Signin.css"; // Import the CSS file for styling
+
+const Signin = () => {
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const navigate = useNavigate();
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    try {
+      const response = await fetch("http://localhost:5000/api/auth/signin", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email, password }),
+      });
+      const data = await response.json();
+      if (response.ok) {
+        alert("✅ Successful Sign In!");
+        navigate("/dashboard");
+      } else {
+        alert("❌ " + data.message);
+      }
+    } catch (error) {
+      console.error("Error:", error);
+    }
+  };
+
+  return (
+    <div className="auth-container">
+      <div className="auth-card">
+        <h2>Sign In</h2>
+        <form onSubmit={handleSubmit}>
+          <input type="email" placeholder="Email" value={email} onChange={(e) => setEmail(e.target.value)} />
+          <input type="password" placeholder="Password" value={password} onChange={(e) => setPassword(e.target.value)} />
+          <button type="submit">Sign In</button>
+        </form>
+        <p>Don't have an account? <Link to="/signup">Sign Up</Link></p>
+      </div>
+    </div>
+  );
+};
+
+export default Signin;
+
+
+Signup.js
+import React, { useState } from "react";
+import { useNavigate } from "react-router-dom";
+import "./Signup.css"; // Import CSS file for styling
+
+const Signup = () => {
+  const [name, setName] = useState("");
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [phone, setPhone] = useState("");
+  const [address, setAddress] = useState("");
+  const [errors, setErrors] = useState({});
+  const navigate = useNavigate();
+
+  const validateForm = () => {
+    let newErrors = {};
+
+    // Name Validation (Only alphabets, no numbers/special chars)
+    if (!name.trim()) {
+      newErrors.name = "Name is required";
+    } else if (!/^[A-Za-z\s]+$/.test(name)) {
+      newErrors.name = "Name should contain only alphabets";
+    }
+
+    // Email Validation (Must contain @ and be valid)
+    if (!email.trim()) {
+      newErrors.email = "Email is required";
+    } else if (!/^\S+@\S+\.\S+$/.test(email)) {
+      newErrors.email = "Enter a valid email address";
+    }
+
+    // Password Validation (At least 6 characters, including letters, numbers, and symbols)
+    if (!password.trim()) {
+      newErrors.password = "Password is required";
+    } else if (!/^(?=.*[A-Za-z])(?=.*\d)(?=.*[@$!%*?&])[A-Za-z\d@$!%*?&]{6,}$/.test(password)) {
+      newErrors.password =
+        "Password must be at least 6 characters long, including letters, numbers, and symbols";
+    }
+
+    // Phone Number Validation (Exactly 10 digits)
+    if (!phone.trim()) {
+      newErrors.phone = "Phone number is required";
+    } else if (!/^\d{10}$/.test(phone)) {
+      newErrors.phone = "Phone number must be exactly 10 digits";
+    }
+
+    // Address Validation (Required)
+    if (!address.trim()) {
+      newErrors.address = "Address is required";
+    }
+
+    setErrors(newErrors);
+    return Object.keys(newErrors).length === 0;
+  };
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    if (!validateForm()) return;
+
+    try {
+      const response = await fetch("http://localhost:5000/api/auth/signup", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name, email, password, phone, address }),
+      });
+      const data = await response.json();
+      if (response.ok) {
+        alert("✅ User Registered Successfully!");
+        navigate("/signin");
+      } else {
+        alert("❌ " + data.message);
+      }
+    } catch (error) {
+      console.error("Error:", error);
+    }
+  };
+
+  return (
+    <div className="signup-container">
+      <h2>Sign Up</h2>
+      <form className="signup-form" onSubmit={handleSubmit}>
+        <div className="form-group">
+          <input
+            type="text"
+            placeholder="Full Name"
+            value={name}
+            onChange={(e) => setName(e.target.value)}
+            required
+          />
+          {errors.name && <p className="error">{errors.name}</p>}
+        </div>
+
+        <div className="form-group">
+          <input
+            type="email"
+            placeholder="Email"
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
+            required
+          />
+          {errors.email && <p className="error">{errors.email}</p>}
+        </div>
+
+        <div className="form-group">
+          <input
+            type="password"
+            placeholder="Password"
+            value={password}
+            onChange={(e) => setPassword(e.target.value)}
+            required
+          />
+          {errors.password && <p className="error">{errors.password}</p>}
+        </div>
+
+        <div className="form-group">
+          <input
+            type="text"
+            placeholder="Phone"
+            value={phone}
+            onChange={(e) => setPhone(e.target.value)}
+            required
+          />
+          {errors.phone && <p className="error">{errors.phone}</p>}
+        </div>
+
+        <div className="form-group">
+          <input
+            type="text"
+            placeholder="Address"
+            value={address}
+            onChange={(e) => setAddress(e.target.value)}
+            required
+          />
+          {errors.address && <p className="error">{errors.address}</p>}
+        </div>
+
+        <button type="submit" className="submit-btn">Submit</button>
+      </form>
+    </div>
+  );
+};
+
+export default Signup;               
+
+problem statement ---->>>>> need to add password, confirm password, country, state, city, pincode, address1, address2 in signup form with all validation and store the data in the database .   
+and give the only those file completely whose have the changes required 
+
