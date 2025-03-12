@@ -29,3 +29,317 @@ description
 Sub Categories --
 
 
+
+
+import React, { useState } from "react";
+import "./Dashboard.css";
+import { FaUserCircle } from "react-icons/fa"; // Install via: npm install react-icons
+
+const Dashboard = () => {
+  // Current logged-in user (example)
+  const [currentUser] = useState({ name: "John Doe" });
+
+  // Sample categories data
+  const [categories, setCategories] = useState([
+    { id: 1, name: "Women", image: "women.jpg", createdOn: "11-11-2024", status: "Activated" },
+    { id: 2, name: "Men", image: "men.jpg", createdOn: "11-11-2024", status: "Activated" },
+    { id: 3, name: "Home", image: "home.jpg", createdOn: "11-11-2024", status: "Activated" },
+    { id: 4, name: "Sports", image: "sports.jpg", createdOn: "11-11-2024", status: "Deactivated" },
+  ]);
+
+  const [searchTerm, setSearchTerm] = useState("");
+
+  // Toggle category status
+  const toggleStatus = (id) => {
+    setCategories((prevCategories) =>
+      prevCategories.map((cat) =>
+        cat.id === id
+          ? { ...cat, status: cat.status === "Activated" ? "Deactivated" : "Activated" }
+          : cat
+      )
+    );
+  };
+
+  // Delete category
+  const deleteCategory = (id) => {
+    setCategories(categories.filter((cat) => cat.id !== id));
+  };
+
+  // Filtered categories based on search
+  const filteredCategories = categories.filter((cat) =>
+    cat.name.toLowerCase().includes(searchTerm.toLowerCase())
+  );
+
+  return (
+    <div className="dashboard-page">
+      {/* Left Sidebar */}
+      <div className="sidebar">
+        <h3>Categories</h3>
+      </div>
+
+      {/* Right Main Content */}
+      <div className="main-content">
+        {/* Top Bar with User Icon and Name */}
+        <div className="topbar">
+          <div className="user-info">
+            <FaUserCircle className="user-icon" />
+            <span className="user-name">{currentUser.name}</span>
+          </div>
+        </div>
+
+        {/* Header with Title, Search and Add New Category */}
+        <div className="header">
+          <h2>Categories</h2>
+          <div className="header-controls">
+            <input
+              type="text"
+              placeholder="Search..."
+              onChange={(e) => setSearchTerm(e.target.value)}
+              className="search-box"
+            />
+            <button className="add-category-btn">Add New Category</button>
+          </div>
+        </div>
+
+        {/* Category Table */}
+        <table className="category-table">
+          <thead>
+            <tr>
+              <th>Name</th>
+              <th>Image</th>
+              <th>Created On</th>
+              <th>Status</th>
+              <th>Action</th>
+            </tr>
+          </thead>
+          <tbody>
+            {filteredCategories.map((category) => (
+              <tr key={category.id}>
+                <td>{category.name}</td>
+                <td>
+                  <img src={category.image} alt={category.name} className="category-img" />
+                </td>
+                <td>{category.createdOn}</td>
+                <td>
+                  <button
+                    className={category.status === "Activated" ? "status-btn active" : "status-btn inactive"}
+                    onClick={() => toggleStatus(category.id)}
+                  >
+                    {category.status}
+                  </button>
+                </td>
+                <td>
+                  <button className="edit-btn">✏️</button>
+                  <button className="delete-btn" onClick={() => deleteCategory(category.id)}>
+                    🗑️
+                  </button>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  );
+};
+
+export default Dashboard;
+       THis is my Dashboard.js file
+and my Backend files are 
+db.js file 
+const mongoose = require("mongoose");
+require("dotenv").config();
+
+const connectDB = async () => {
+  try {
+    await mongoose.connect(process.env.MONGO_URI, {
+      useNewUrlParser: true,
+      useUnifiedTopology: true,
+    });
+    console.log("MongoDB Connected Successfully!");
+  } catch (error) {
+    console.error("MongoDB Connection Failed:", error.message);
+    process.exit(1);
+  }
+};
+
+module.exports = connectDB;
+models/User.js 
+// const mongoose = require("mongoose");
+// const bcrypt = require("bcrypt");
+
+// const userSchema = new mongoose.Schema({
+//   name: { type: String, required: true },
+//   email: { type: String, required: true, unique: true },
+//   password: { type: String, required: true },
+//   phone: { type: String, required: true },  // New field
+//   address: { type: String, required: true }, // New field
+//   createdAt: { type: Date, default: Date.now }
+// });
+
+// // Hash password before saving
+// userSchema.pre("save", async function (next) {
+//   if (!this.isModified("password")) return next();
+//   const salt = await bcrypt.genSalt(10);
+//   this.password = await bcrypt.hash(this.password, salt);
+//   next();
+// });
+
+// const User = mongoose.model("User", userSchema);
+// module.exports = User;
+
+const mongoose = require("mongoose");
+const bcrypt = require("bcrypt");
+
+const userSchema = new mongoose.Schema({
+  name: { type: String, required: true },
+  email: { type: String, required: true, unique: true },
+  password: { type: String, required: true },
+  phone: { type: String, required: true },
+  country: { type: String, required: true },
+  state: { type: String, required: true },
+  city: { type: String, required: true },
+  pincode: { type: String, required: true },
+  address1: { type: String, required: true },
+  address2: { type: String }, // Optional field
+  createdAt: { type: Date, default: Date.now }
+});
+
+// Hash password before saving
+userSchema.pre("save", async function (next) {
+  if (!this.isModified("password")) return next();
+  const salt = await bcrypt.genSalt(10);
+  this.password = await bcrypt.hash(this.password, salt);
+  next();
+});
+
+const User = mongoose.model("User", userSchema);
+module.exports = User;
+routes/authRoutes.js
+const express = require("express");
+const bcrypt = require("bcrypt");
+const User = require("../models/User");
+
+const router = express.Router();
+
+// User Registration (Signup)
+router.post("/signup", async (req, res) => {
+  try {
+    const { name, email, password, phone, country, state, city, pincode, address1, address2 } = req.body;
+    
+    let user = await User.findOne({ email });
+    if (user) {
+      return res.status(400).json({ message: "User already exists!" });
+    }
+
+    const newUser = new User({ name, email, password, phone, country, state, city, pincode, address1, address2 });
+    await newUser.save();
+
+    res.status(201).json({ message: "User registered successfully!" });
+  } catch (error) {
+    res.status(500).json({ error: "Server Error" });
+  }
+});
+
+// User Login
+// router.post("/signin", async (req, res) => {
+//   try {
+//     const { email, password } = req.body;
+//     const user = await User.findOne({ email });
+
+//     if (!user) {
+//       return res.status(400).json({ message: "Invalid email or password!" });
+//     }
+
+//     const isMatch = await bcrypt.compare(password, user.password);
+//     if (!isMatch) {
+//       return res.status(400).json({ message: "Invalid email or password!" });
+//     }
+
+//     res.status(200).json({ message: "Login successful!", user });
+//   } catch (error) {
+//     res.status(500).json({ error: "Server Error" });
+//   }
+// });
+
+// User Login
+router.post("/signin", async (req, res) => {
+  try {
+    const { emailOrPhone, password } = req.body;
+
+    // Find user by email OR phone number
+    const user = await User.findOne({
+      $or: [{ email: emailOrPhone }, { phone: emailOrPhone }],
+    });
+
+    if (!user) {
+      return res.status(400).json({ message: "Invalid email/phone or password!" });
+    }
+
+    // Compare the entered password with the hashed password in DB
+    const isMatch = await bcrypt.compare(password, user.password);
+    if (!isMatch) {
+      return res.status(400).json({ message: "Invalid email/phone or password!" });
+    }
+
+    res.status(200).json({ message: "Login successful!", user });
+  } catch (error) {
+    res.status(500).json({ error: "Server Error" });
+  }
+});
+
+
+
+module.exports = router;
+
+
+server.js
+const express = require("express");
+const mongoose = require("mongoose");
+const cors = require("cors");
+const authRoutes = require("./routes/authRoutes");
+require("dotenv").config();
+
+const app = express();
+
+// Middleware
+app.use(express.json());
+app.use(cors());
+
+// Routes
+app.use("/api/auth", authRoutes);
+
+// MongoDB Connection
+mongoose.connect(process.env.MONGO_URI, {
+  useNewUrlParser: true,
+  useUnifiedTopology: true,
+}).then(() => console.log("MongoDB Connected"))
+  .catch(err => console.log(err));
+
+const PORT = process.env.PORT || 5000;
+app.listen(PORT, () => console.log(`Server running on port ${PORT}`));  
+these are all my files of Backend 
+and the Package.json file is 
+{
+  "name": "backend",
+  "version": "1.0.0",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "description": "",
+  "dependencies": {
+    "bcrypt": "^5.1.1",
+    "bcryptjs": "^3.0.2",
+    "body-parser": "^1.20.3",
+    "cors": "^2.8.5",
+    "dotenv": "^16.4.7",
+    "express": "^4.21.2",
+    "jsonwebtoken": "^9.0.2",
+    "mongoose": "^8.12.1",
+    "react-router-dom": "^7.2.0"
+  }
+}  
